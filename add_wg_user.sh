@@ -1,7 +1,10 @@
 #!/bin/bash
-#usage
-# sudo ./add_wg_user.sh username
-# $1 - username arg
+
+if [ $# -eq 0 ]
+then
+  echo -e "\n\n  === not enough arguments ===\n      usage: sudo $0 new_username\n\n"
+  exit 0
+fi
 
 #some vars
 filepath="/etc/wireguard/"
@@ -10,7 +13,7 @@ srv_keyfile="$filepath""server_public.key"
 
 
 #create keys
-wg genkey | tee $filepath$1_private.key | wg pubkey > $filepath$1_public.key
+wg genkey | tee "$filepath$1_private.key"| wg pubkey > "$filepath$1_public.key"
 
 
 #client ip_addr_gen
@@ -18,25 +21,32 @@ new_ip=$(tail -4 $wg_filename | grep 'AllowedIPs' | awk -F. '{ new_octet = $4+1;
 
 
 #add info to wg0.conf
-echo -e "[Peer]\n#name = $1" \
-	"\nPublicKey = $(cat $filepath$1_public.key)" \
-	"\nAllowedIPs = $new_ip\n\n" >> $wg_filename
+cat << EOF >> $wg_filename
+[Peer]
+#name = $1 
+PublicKey = $(cat "$filepath$1_public.key")
+AllowedIPs = $new_ip
 
+EOF
 
 # create user_wg0.conf
-echo -e "[Interface]\n# $1 user config" \
-	"\nPrivateKey = " "$(cat $filepath$1_private.key)" \
-	"\nAddress = $new_ip" \
-	"\nDNS = 8.8.8.8" > $filepath$1_wg0.conf
+cat << EOF > "$filepath$1_wg0.conf" 
+[Interface]
+# $1 user config
+PrivateKey = $(cat "$filepath$1_private.key")
+Address = $new_ip
+DNS = 8.8.8.8"
 
-echo -e "\n[Peer]" \
-	"\nPublicKey = $(cat $srv_keyfile) \nAllowedIPs = 0.0.0.0/0 \nEndpoint = 217.196.98.82:51820" >> $filepath$1_wg0.conf
+[Peer]
+PublicKey = $(cat $srv_keyfile)
+AllowedIPs = 0.0.0.0/0
+Endpoint = 217.196.98.82:51820
 
-
+EOF
 #service restart
 systemctl stop wg-quick@wg0.service
 systemctl start wg-quick@wg0.service
 
 
 #qr code gen
-qrencode -t ansiutf8 < $filepath$1_wg0.conf
+qrencode -t ansiutf8 < "$filepath$1_wg0.conf"
